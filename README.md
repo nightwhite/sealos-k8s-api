@@ -39,6 +39,20 @@ USER_NAME=default
 AUTH_TOKEN=your-api-token
 ```
 
+### 环境变量说明
+
+启动 Sealos terminal 之后去打印环境变量，确保环境变量正确加载。 
+
+`printenv | grep -E '^(APISERVER|USER_TOKEN|NAMESPACE|USER_NAME|AUTH_HEADER)='`
+
+| 变量名 | 必填 | 说明 | 示例值 |
+|--------|------|------|--------|
+| APISERVER | 是 | Kubernetes API 服务器地址 | https://kubernetes.default.svc.cluster.local:443 |
+| USER_TOKEN | 是 | Service Account Token | eyJhbGciOiJSUzI1... |
+| NAMESPACE | 否 | 默认操作的命名空间 | default |
+| USER_NAME | 否 | Service Account 用户名 | default |
+| AUTH_TOKEN | 是 | API 认证令牌 | your-api-token |
+
 ### 启动服务
 
 ```bash
@@ -90,18 +104,6 @@ src/
   ├── middleware/     # 中间件
   └── types/         # 类型定义
 ```
-
-### 环境变量说明
-
-启动 Sealos terminal 之后去打印环境变量，确保环境变量正确加载。 `printenv | grep -E '^(APISERVER|USER_TOKEN|NAMESPACE|USER_NAME|AUTH_HEADER)='`
-
-| 变量名 | 必填 | 说明 | 示例值 |
-|--------|------|------|--------|
-| APISERVER | 是 | Kubernetes API 服务器地址 | https://kubernetes.default.svc.cluster.local:443 |
-| USER_TOKEN | 是 | Service Account Token | eyJhbGciOiJSUzI1... |
-| NAMESPACE | 否 | 默认操作的命名空间 | default |
-| USER_NAME | 否 | Service Account 用户名 | default |
-| AUTH_TOKEN | 是 | API 认证令牌 | your-api-token |
 
 ### 调试信息
 
