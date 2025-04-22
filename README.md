@@ -14,7 +14,7 @@
 
 ### 环境要求
 
-- 选择 Node 运行时
+- 选择 Devbox Node 运行时
 - 安装 Bun， `npm i bun -g`
 - Kubernetes 集群访问权限
 
