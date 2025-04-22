@@ -20,9 +20,9 @@ const app = new Elysia()
     path: '/docs',
     documentation: {
       info: {
-        title: 'Kubernetes 管理 API',
+        title: 'Sealos Kubernetes 管理 API',
         version: '1.0.0',
-        description: '用于 Github Actions 和自动化工具管理 K8s 资源的 API 服务'
+        description: '用户 Sealos K8s 集群的资源管理 API',
       },
       tags: [
         { name: 'Pods', description: 'Pod 相关操作' },
