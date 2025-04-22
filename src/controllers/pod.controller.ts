@@ -1,6 +1,5 @@
 import { Elysia, t } from 'elysia';
 import { KubernetesService } from '../services/k8s.service';
-import { PodListOptions } from '../types/k8s.types';
 import { V1Pod } from '@kubernetes/client-node';
 import { authGuard } from '../middleware/auth.guard';
 

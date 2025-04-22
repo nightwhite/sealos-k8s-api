@@ -456,6 +456,36 @@ export class KubernetesService {
     }
   }
 
+  // 获取 Ingress 列表
+  async getIngresses(namespace = '') {
+    try {
+      let response;
+      if (namespace) {
+        response = await this.k8sApi.networkingV1Api.listNamespacedIngress({
+          namespace
+        });
+      } else {
+        response = await this.k8sApi.networkingV1Api.listIngressForAllNamespaces();
+      }
+      return response;
+    } catch (error) {
+      throw this.handleK8sError(error);
+    }
+  }
+
+  // 获取 Ingress 详情
+  async getIngress(namespace: string, name: string) {
+    try {
+      const response = await this.k8sApi.networkingV1Api.readNamespacedIngress({
+        name,
+        namespace
+      });
+      return response;
+    } catch (error) {
+      throw this.handleK8sError(error);
+    }
+  }
+
   // 删除资源
   async deleteResource(kind: string, name: string, namespace: string) {
     try {
