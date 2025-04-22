@@ -17,7 +17,7 @@ COPY . .
 RUN bun run build
 
 # 运行阶段
-FROM oven/bun:latest-slim
+FROM oven/bun:slim
 
 WORKDIR /app
 
