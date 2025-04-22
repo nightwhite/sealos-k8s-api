@@ -1,6 +1,6 @@
 # Kubernetes 管理 API
 
-基于 Elysia 和 Bun 运行时实现的 Kubernetes 资源管理 API 服务。
+基于 Elysia 和 Bun 运行时实现的 Sealos Kubernetes 资源管理 API 服务。
 
 ## 功能特性
 
@@ -13,6 +13,12 @@
 ## 快速开始
 
 ### 环境要求
+
+推荐使用 claw 版的 Sealos ，性价比更高，每个月赠送五美金额度。
+
+Claw 版注册地址：[https://console.run.claw.cloud/signin?link=7KWLLHVRSOTG](https://console.run.claw.cloud/signin?link=7KWLLHVRSOTG)
+
+Sealos 官方版本：[https://cloud.sealos.run/?uid=C2jkh_blDz](https://cloud.sealos.run/?uid=C2jkh_blDz)
 
 - 选择 Devbox Node 运行时
 - 安装 Bun， `npm i bun -g`
