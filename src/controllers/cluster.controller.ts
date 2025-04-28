@@ -1,14 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { KubernetesService } from '../services/k8s.service';
-import { CreateNamespaceRequest, V1NodeWithStatus } from '../types/k8s.types';
-import { V1Namespace, V1Service, V1Ingress, V1IngressRule, V1HTTPIngressPath, V1IngressTLS } from '@kubernetes/client-node';
-import { authGuard } from '../middleware/auth.guard';
+import { V1Service, V1Ingress, V1IngressRule, V1HTTPIngressPath, V1IngressTLS } from '@kubernetes/client-node';
 
 /**
  * 集群资源管理控制器
  */
 export const clusterController = new Elysia({ prefix: '/cluster' })
-  .guard(authGuard)  // 应用认证守卫
   .decorate('k8sService', new KubernetesService())
   
   /**

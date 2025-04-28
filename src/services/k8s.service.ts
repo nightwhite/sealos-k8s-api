@@ -1,8 +1,6 @@
 import * as k8s from '@kubernetes/client-node';
 import * as yaml from 'yaml';
-import * as fs from 'fs';
 import * as https from 'https';
-import { KubernetesError } from '../types/k8s.types';
 
 export class KubernetesService {
   private k8sApi: {
@@ -552,8 +550,8 @@ export class KubernetesService {
 
   // 处理 Kubernetes API 错误
   private handleK8sError(error: unknown): Error {
-    const k8sError = error as KubernetesError;
-    const message = k8sError.response?.body?.message || k8sError.message || '未知错误';
+    const k8sError = error as Error;
+    const message = k8sError.message;
     const enhancedError = new Error(message);
     return enhancedError;
   }
