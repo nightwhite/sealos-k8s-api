@@ -1,13 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { KubernetesService } from '../services/k8s.service';
 import { V1Deployment } from '@kubernetes/client-node';
-import { authGuard } from '../middleware/auth.guard';
 
 /**
  * Deployment 资源管理控制器
  */
 export const deploymentController = new Elysia({ prefix: '/deployments' })
-  .guard(authGuard)  // 应用认证守卫
   .decorate('k8sService', new KubernetesService())
   
   /**
