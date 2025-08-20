@@ -2,7 +2,6 @@ import { Context } from 'elysia'
 
 // 创建认证中间件守卫函数
 export const authGuard = ({ request, set, path }: Context) => {
-  console.log(`正在验证路径 ${path} 的访问权限...`);
   
   const expectedToken = process.env.AUTH_TOKEN;
   

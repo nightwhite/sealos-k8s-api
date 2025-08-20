@@ -21,6 +21,17 @@ FROM oven/bun:slim
 
 WORKDIR /app
 
+# 安装 kubectl 和必要的工具
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && chmod +x kubectl \
+    && mv kubectl /usr/local/bin/
+
 # 复制构建产物和必要文件
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./

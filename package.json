@@ -1,6 +1,6 @@
 {
-  "name": "app",
-  "version": "1.0.50",
+  "name": "sealos-k8s-api",
+  "version": "1.0.51",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",

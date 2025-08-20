@@ -9,7 +9,11 @@ import { Elysia } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
 import { podController } from './controllers/pod.controller';
 import { deploymentController } from './controllers/deployment.controller';
+import { serviceController } from './controllers/service.controller';
 import { clusterController } from './controllers/cluster.controller';
+import { ingressController } from './controllers/ingress.controller';
+import { kubectlController } from './controllers/kubectl.controller';
+import { devboxController } from './controllers/devbox.controller';
 import { authGuard } from './middleware/auth.guard';
 
 // 创建 API 版本前缀
@@ -29,7 +33,11 @@ app.use(swagger({
     tags: [
       { name: 'Pods', description: 'Pod 相关操作' },
       { name: 'Deployments', description: '部署相关操作' },
-      { name: 'Cluster', description: '集群状态相关操作' }
+      { name: 'Service', description: 'Service 服务管理' },
+      { name: 'Cluster', description: '集群状态相关操作' },
+      { name: 'Ingress', description: 'Ingress 网络入口管理' },
+      { name: 'kubectl', description: 'kubectl 命令执行' },
+      { name: 'Devbox', description: 'Devbox 开发环境管理' }
     ],
     components: {
       securitySchemes: {
@@ -65,20 +73,21 @@ app.use(swagger({
 }))
 
 // 添加 API 路由组
-.group(API_VERSION, app => 
+.group(API_VERSION, app =>
   app.onBeforeHandle(authGuard)
   .use(podController)
   .use(deploymentController)
+  .use(serviceController)
   .use(clusterController)
+  .use(ingressController)
+  .use(kubectlController)
+  .use(devboxController)
 )
 
 // 全局错误处理
 .onError(({ code, error }) => {
   const errorMessage = error instanceof Error ? error.message : '未知错误';
-  console.error(`[${code}] ${errorMessage}`);
-  
   if (code === 'NOT_FOUND') {
-    console.error('请求的资源不存在', error);
     return {
       success: false,
       error: 'Not Found',
@@ -98,10 +107,8 @@ app.use(swagger({
 // 启动服务器
 .listen(process.env.PORT || 8080);
 
-console.log(
-  `🦊 Kubernetes 管理 API 运行中 - ${app.server?.hostname}:${app.server?.port}`
-);
-console.log(`📚 API 文档可在 ${app.server?.hostname}:${app.server?.port}/docs 访问`);
+console.log(`🦊 Kubernetes API on http://${app.server?.hostname}:${app.server?.port}`);
+console.log(`📚 Docs: http://${app.server?.hostname}:${app.server?.port}/docs`);
 
 // 导出应用以供测试
 export type App = typeof app;

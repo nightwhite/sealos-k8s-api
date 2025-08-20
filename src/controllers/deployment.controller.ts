@@ -1,12 +1,19 @@
 import { Elysia, t } from 'elysia';
 import { KubernetesService } from '../services/k8s.service';
+import {
+  validateReplicas,
+  is404Error,
+  format404Error,
+  formatGenericError
+} from './common/validation';
+import { ResourceNameParam, ReplicasParam } from './common/schemas';
 import { V1Deployment } from '@kubernetes/client-node';
 
 /**
  * Deployment 资源管理控制器
  */
-export const deploymentController = new Elysia({ prefix: '/deployments' })
-  .decorate('k8sService', new KubernetesService())
+export const deploymentController = new Elysia({ prefix: '/deployment' })
+  .decorate('k8sService', KubernetesService.getInstance())
   
   /**
    * 获取部署列表
@@ -17,7 +24,6 @@ export const deploymentController = new Elysia({ prefix: '/deployments' })
   .get('/', async ({ k8sService }) => {
     try {
       const namespace = process.env.NAMESPACE || 'default';
-      console.log(`获取命名空间 ${namespace} 中的部署列表`);
       
       const deploymentsResponse = await k8sService.getDeployments(namespace);
       
@@ -66,8 +72,7 @@ export const deploymentController = new Elysia({ prefix: '/deployments' })
     try {
       const namespace = process.env.NAMESPACE || 'default';
       const { name } = params;
-      console.log(`获取部署详情: ${namespace}/${name}`);
-      
+
       const deployment = await k8sService.getDeployment(namespace, name);
       return {
         success: true,
@@ -97,11 +102,7 @@ export const deploymentController = new Elysia({ prefix: '/deployments' })
       };
     }
   }, {
-    params: t.Object({
-      name: t.String({
-        description: '部署名称'
-      })
-    }),
+    params: ResourceNameParam,
     detail: {
       summary: '获取部署详情',
       description: '获取指定部署的详细信息，包括副本状态、容器配置等',
@@ -124,7 +125,7 @@ export const deploymentController = new Elysia({ prefix: '/deployments' })
     try {
       const { yamlContent } = body;
       const namespace = process.env.NAMESPACE || 'default';
-      const resources = await k8sService.applyYaml(yamlContent, namespace);
+      const resources = await k8sService.applyYaml(yamlContent);
       
       return {
         success: true,
@@ -158,11 +159,11 @@ export const deploymentController = new Elysia({ prefix: '/deployments' })
    * DELETE /api/v1/deployments/my-deployment
    */
   .delete('/:name', async ({ params, k8sService }) => {
+    const namespace = process.env.NAMESPACE || 'default';
+    const { name } = params;
+
     try {
-      const namespace = process.env.NAMESPACE || 'default';
-      const { name } = params;
-      console.log(`删除部署: ${namespace}/${name}`);
-      
+
       await k8sService.deleteResource('deployment', name, namespace);
       return {
         success: true,
@@ -170,18 +171,17 @@ export const deploymentController = new Elysia({ prefix: '/deployments' })
         message: `部署 ${name} 已成功删除`
       };
     } catch (error: any) {
-      return {
-        success: false,
-        error: `删除部署失败: ${error.message}`,
-        status: error.response?.statusCode || 500
-      };
+      console.error('删除部署失败:', error);
+
+      // 处理 404 错误
+      if (is404Error(error)) {
+        return format404Error(name, 'Deployment');
+      }
+
+      return formatGenericError(error, '删除部署');
     }
   }, {
-    params: t.Object({
-      name: t.String({
-        description: '部署名称'
-      })
-    }),
+    params: ResourceNameParam,
     detail: {
       summary: '删除部署',
       description: '删除指定的部署及其关联的资源',
@@ -196,41 +196,45 @@ export const deploymentController = new Elysia({ prefix: '/deployments' })
    * POST /api/v1/deployments/my-deployment/restart
    */
   .post('/:name/restart', async ({ params, k8sService }) => {
+    const namespace = process.env.NAMESPACE || 'default';
+    const { name } = params;
+
     try {
-      const namespace = process.env.NAMESPACE || 'default';
-      const { name } = params;
-      console.log(`重启部署: ${namespace}/${name}`);
-      
-      await k8sService.patchDeployment(namespace, name, {
-        spec: {
-          template: {
-            metadata: {
-              annotations: {
-                'kubectl.kubernetes.io/restartedAt': new Date().toISOString()
-              }
-            }
-          }
-        }
-      });
-      
+      const result = await k8sService.restartDeployment(namespace, name);
+
       return {
         success: true,
         namespace,
-        message: `部署 ${name} 已成功重启`
+        deployment: name,
+        message: `部署 ${name} 已成功重启`,
+        output: result.output
       };
     } catch (error: any) {
+      console.error('重启部署失败:', error);
+
+      // 处理 404 错误
+      const is404Error = error.code === 404 ||
+                         error.statusCode === 404 ||
+                         (error.message && error.message.includes('not found')) ||
+                         (error.body && error.body.includes('not found'));
+
+      if (is404Error) {
+        return {
+          success: false,
+          error: `Deployment "${name}" 不存在`,
+          status: 404,
+          hint: '请检查 Deployment 名称是否正确，或使用 GET /api/v1/deployments 查看可用的部署'
+        };
+      }
+
       return {
         success: false,
         error: `重启部署失败: ${error.message}`,
-        status: error.response?.statusCode || 500
+        status: error.code || error.response?.statusCode || 500
       };
     }
   }, {
-    params: t.Object({
-      name: t.String({
-        description: '部署名称'
-      })
-    }),
+    params: ResourceNameParam,
     detail: {
       summary: '重启部署',
       description: '通过更新部署的 Pod 模板注解来触发滚动重启',
@@ -250,12 +254,21 @@ export const deploymentController = new Elysia({ prefix: '/deployments' })
    * }
    */
   .post('/:name/scale', async ({ params, body, k8sService }) => {
+    const namespace = process.env.NAMESPACE || 'default';
+    const { name } = params;
+    const { replicas } = body;
+
     try {
-      const namespace = process.env.NAMESPACE || 'default';
-      const { name } = params;
-      const { replicas } = body;
-      
-      console.log(`调整部署 ${namespace}/${name} 的副本数量为 ${replicas}`);
+      // Parameter validation is handled by schema
+
+      if (typeof replicas !== 'number' || replicas < 0) {
+        return {
+          success: false,
+          error: '副本数量必须是非负整数',
+          status: 400
+        };
+      }
+
       const result = await k8sService.scalePodReplicas(namespace, name, replicas);
       
       return {
@@ -267,18 +280,31 @@ export const deploymentController = new Elysia({ prefix: '/deployments' })
         targetReplicas: replicas
       };
     } catch (error: any) {
+      console.error('调整副本数量失败:', error);
+
+      // 处理 404 错误
+      const is404Error = error.code === 404 ||
+                         error.statusCode === 404 ||
+                         (error.message && error.message.includes('not found')) ||
+                         (error.body && error.body.includes('not found'));
+
+      if (is404Error) {
+        return {
+          success: false,
+          error: `Deployment "${name}" 不存在`,
+          status: 404,
+          hint: '请检查 Deployment 名称是否正确，或使用 GET /api/v1/deployments 查看可用的部署'
+        };
+      }
+
       return {
         success: false,
         error: `调整副本数量失败: ${error.message}`,
-        status: error.response?.statusCode || 500
+        status: error.code || error.response?.statusCode || 500
       };
     }
   }, {
-    params: t.Object({
-      name: t.String({
-        description: '部署名称'
-      })
-    }),
+    params: ResourceNameParam,
     body: t.Object({
       replicas: t.Number({
         description: '目标副本数量',
