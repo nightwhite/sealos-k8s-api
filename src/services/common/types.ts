@@ -22,6 +22,27 @@ export interface DevboxInfo {
   memory: string;
   createdAt: string;
   namespace: string;
+  // 新增字段
+  uid?: string;
+  image?: string;
+  templateID?: string;
+  phase?: string;
+  networkType?: string;
+  nodePort?: number | null;
+  appPorts?: Array<{
+    name: string;
+    port: number;
+    targetPort: number;
+    protocol: string;
+  }>;
+  lastCommit?: {
+    image: string;
+    time: string;
+    status: string;
+    node: string;
+  } | null;
+  lastState?: any;
+  currentState?: any;
 }
 
 // 通用响应格式

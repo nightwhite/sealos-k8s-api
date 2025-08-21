@@ -6,7 +6,7 @@ import { DevboxK8sService } from './k8s/devbox.service';
 import { PodService } from './k8s/pod.service';
 import { DeploymentService } from './k8s/deployment.service';
 import { ServiceService } from './k8s/service.service';
-import { ClusterService } from './k8s/cluster.service';
+import { SecretService } from './k8s/secret.service';
 
 // 导出主要的 K8s 服务类
 export class KubernetesService extends DevboxK8sService {
@@ -16,7 +16,7 @@ export class KubernetesService extends DevboxK8sService {
   private podService: PodService;
   private deploymentService: DeploymentService;
   private serviceService: ServiceService;
-  private clusterService: ClusterService;
+  private secretService: SecretService;
 
   constructor() {
     super();
@@ -25,7 +25,7 @@ export class KubernetesService extends DevboxK8sService {
     this.podService = new PodService();
     this.deploymentService = new DeploymentService();
     this.serviceService = new ServiceService();
-    this.clusterService = new ClusterService();
+    this.secretService = new SecretService();
   }
 
   /**
@@ -97,6 +97,45 @@ export class KubernetesService extends DevboxK8sService {
     return this.serviceService.getService(namespace, name);
   }
 
+  // ===== Secret 相关方法 =====
+
+  async getSecrets(namespace: string, options?: any): Promise<any> {
+    return this.secretService.getSecrets(namespace, options);
+  }
+
+  async getSecret(namespace: string, name: string): Promise<any> {
+    return this.secretService.getSecret(namespace, name);
+  }
+
+  async createSecret(namespace: string, secretSpec: any): Promise<any> {
+    return this.secretService.createSecret(namespace, secretSpec);
+  }
+
+  async updateSecret(namespace: string, name: string, secretSpec: any): Promise<any> {
+    return this.secretService.updateSecret(namespace, name, secretSpec);
+  }
+
+  async patchSecret(namespace: string, name: string, patchData: any): Promise<any> {
+    return this.secretService.patchSecret(namespace, name, patchData);
+  }
+
+  async deleteSecret(namespace: string, name: string): Promise<any> {
+    return this.secretService.deleteSecret(namespace, name);
+  }
+
+  async createOpaqueSecret(namespace: string, name: string, data: Record<string, string>, labels?: Record<string, string>): Promise<any> {
+    return this.secretService.createOpaqueSecret(namespace, name, data, labels);
+  }
+
+  async createTLSSecret(namespace: string, name: string, tlsCert: string, tlsKey: string, labels?: Record<string, string>): Promise<any> {
+    return this.secretService.createTLSSecret(namespace, name, tlsCert, tlsKey, labels);
+  }
+
+
+  async getSecretData(namespace: string, name: string): Promise<Record<string, string>> {
+    return this.secretService.getSecretData(namespace, name);
+  }
+
   // ===== Ingress 相关方法 =====
 
   async getIngresses(namespace: string, options?: any): Promise<any> {
@@ -125,11 +164,7 @@ export class KubernetesService extends DevboxK8sService {
     }
   }
 
-  // ===== 集群相关方法 (委托给 ClusterService) =====
-
-  async getClusterInfo(): Promise<any> {
-    return this.clusterService.getClusterInfo();
-  }
+  // ===== 集群相关方法已移除（权限不足） =====
 
   // ===== 通用资源删除方法 =====
 

@@ -141,7 +141,7 @@ export class DevboxManagerService {
         if (response && response.items) {
           const devboxes = response.items;
           
-          // 转换为简化格式（列表不包含 URL）
+          // 转换为详细格式，包含更多有用信息
           const devboxList: DevboxInfo[] = devboxes.map((devbox: any) => {
             return {
               name: devbox.metadata?.name || 'Unknown',
@@ -149,7 +149,31 @@ export class DevboxManagerService {
               cpu: devbox.spec?.resource?.cpu || 'Unknown',
               memory: devbox.spec?.resource?.memory || 'Unknown',
               createdAt: devbox.metadata?.creationTimestamp || '',
-              namespace: devbox.metadata?.namespace || ''
+              namespace: devbox.metadata?.namespace || '',
+              // 添加更多有用信息
+              uid: devbox.metadata?.uid || '',
+              image: devbox.spec?.image || '',
+              templateID: devbox.spec?.templateID || '',
+              phase: devbox.status?.phase || 'Unknown',
+              networkType: devbox.spec?.network?.type || '',
+              nodePort: devbox.status?.network?.nodePort || null,
+              appPorts: devbox.spec?.config?.appPorts?.map((port: any) => ({
+                name: port.name,
+                port: port.port,
+                targetPort: port.targetPort,
+                protocol: port.protocol
+              })) || [],
+              // 提交历史中的最新信息
+              lastCommit: devbox.status?.commitHistory?.[0] ? {
+                image: devbox.status.commitHistory[0].image,
+                time: devbox.status.commitHistory[0].time,
+                status: devbox.status.commitHistory[0].status,
+                node: devbox.status.commitHistory[0].node
+              } : null,
+              // 运行状态信息
+              lastState: devbox.status?.lastState || null,
+              // 当前状态详情
+              currentState: devbox.status?.state || null
             };
           });
 

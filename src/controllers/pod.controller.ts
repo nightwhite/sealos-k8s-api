@@ -98,69 +98,10 @@ export const podController = new Elysia({ prefix: '/pod' })
     }
   })
   
-  /**
-   * 获取 Pod 详情（查询参数方式）
-   * @description 通过查询参数获取指定 Pod 的详细信息
-   * @example
-   * GET /api/v1/pod/detail?name=my-pod-name
-   */
-  .get('/detail', async ({ query, k8sService }) => {
-    try {
-      const namespace = process.env.NAMESPACE || 'default';
-      const { name } = query;
-      
-      // 如果没有提供 name，返回提示
-      if (!name) {
-        return {
-          success: false,
-          error: '请提供 Pod 名称参数: ?name=pod-name',
-          example: `/api/v1/pod/detail?name=my-pod-name`,
-          status: 400
-        };
-      }
-      
-      const pod = await k8sService.getPodDetails(namespace, name);
-      return {
-        success: true,
-        namespace,
-        pod: {
-          name: pod.metadata?.name,
-          namespace: pod.metadata?.namespace,
-          status: pod.status?.phase,
-          restarts: pod.status?.containerStatuses?.[0]?.restartCount || 0,
-          age: pod.metadata?.creationTimestamp ? 
-            new Date(pod.metadata.creationTimestamp).toISOString() : 'Unknown',
-          ip: pod.status?.podIP,
-          node: pod.spec?.nodeName,
-          labels: pod.metadata?.labels || {},
-          containers: pod.spec?.containers?.map((container: any) => ({
-            name: container.name,
-            image: container.image,
-            ports: container.ports,
-            resources: container.resources
-          })) || []
-        }
-      };
-    } catch (error: any) {
-      console.error('获取 Pod 详情失败:', error);
-      return {
-        success: false,
-        error: `获取 Pod 详情失败: ${error.message}`,
-        status: error.response?.statusCode || 500
-      };
-    }
-  }, {
-    query: OptionalResourceNameQuery,
-    detail: {
-      summary: '获取 Pod 详情（查询参数）',
-      description: '通过查询参数获取指定 Pod 的详细信息',
-      tags: ['Pods']
-    }
-  })
 
   /**
-   * 获取 Pod 详情（路径参数方式）
-   * @description 通过路径参数获取指定 Pod 的详细信息
+   * 获取 Pod 详情
+   * @description 获取指定 Pod 的详细信息
    * @example  
    * GET /api/v1/pod/my-pod-name
    */
@@ -202,8 +143,8 @@ export const podController = new Elysia({ prefix: '/pod' })
   }, {
     params: ResourceNameParam,
     detail: {
-      summary: '获取 Pod 详情（路径参数）',
-      description: '通过路径参数获取指定 Pod 的详细信息',
+      summary: '获取 Pod 详情',
+      description: '获取指定 Pod 的详细信息',
       tags: ['Pods']
     }
   })

@@ -10,7 +10,7 @@ import { swagger } from '@elysiajs/swagger';
 import { podController } from './controllers/pod.controller';
 import { deploymentController } from './controllers/deployment.controller';
 import { serviceController } from './controllers/service.controller';
-import { clusterController } from './controllers/cluster.controller';
+import { secretController } from './controllers/secret.controller';
 import { ingressController } from './controllers/ingress.controller';
 import { kubectlController } from './controllers/kubectl.controller';
 import { devboxController } from './controllers/devbox.controller';
@@ -34,7 +34,7 @@ app.use(swagger({
       { name: 'Pods', description: 'Pod 相关操作' },
       { name: 'Deployments', description: '部署相关操作' },
       { name: 'Service', description: 'Service 服务管理' },
-      { name: 'Cluster', description: '集群状态相关操作' },
+      { name: 'Secret', description: 'Secret 密钥管理' },
       { name: 'Ingress', description: 'Ingress 网络入口管理' },
       { name: 'kubectl', description: 'kubectl 命令执行' },
       { name: 'Devbox', description: 'Devbox 开发环境管理' }
@@ -78,7 +78,7 @@ app.use(swagger({
   .use(podController)
   .use(deploymentController)
   .use(serviceController)
-  .use(clusterController)
+  .use(secretController)
   .use(ingressController)
   .use(kubectlController)
   .use(devboxController)

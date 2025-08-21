@@ -410,12 +410,18 @@ export const devboxController = new Elysia({ prefix: '/devbox' })
         };
       }
 
-      return {
+      const response: any = {
         success: true,
-        devboxName: devboxName || null,
         total: result.total,
         items: result.items
       };
+
+      // 只有在指定了 devboxName 时才返回该字段
+      if (devboxName) {
+        response.devboxName = devboxName;
+      }
+
+      return response;
 
     } catch (error: any) {
       console.error('获取版本列表失败:', error);
