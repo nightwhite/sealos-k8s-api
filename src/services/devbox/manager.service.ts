@@ -5,10 +5,58 @@
 import { DevboxK8sService } from '../k8s/devbox.service';
 import { DevboxInfo, DevboxCreateParams, ApiResponse } from '../common/types';
 import { parseDevboxStatus, buildDevboxUrl, buildPortsInfo, sleep } from '../common/utils';
-import { generateDevboxYamls } from '../../templates/devbox.templates';
+import { generateDevboxYamls, generateDevboxReleaseYaml } from '../../templates/devbox.templates';
 
 export class DevboxManagerService {
   constructor(private k8sService: DevboxK8sService) {}
+
+  /**
+   * 解析 DevBoxRelease 状态
+   */
+  private parseReleaseStatus(status: any): string {
+    if (!status) {
+      return 'Pending';
+    }
+
+    // 检查常见的状态字段
+    if (status.phase) {
+      return status.phase; // Success, Failed, Pending 等
+    }
+
+    if (status.conditions && Array.isArray(status.conditions)) {
+      // 查找最新的条件
+      const latestCondition = status.conditions
+        .sort((a: any, b: any) => 
+          new Date(b.lastTransitionTime || 0).getTime() - 
+          new Date(a.lastTransitionTime || 0).getTime()
+        )[0];
+
+      if (latestCondition) {
+        if (latestCondition.type === 'Ready' && latestCondition.status === 'True') {
+          return 'Success';
+        }
+        if (latestCondition.type === 'Failed' && latestCondition.status === 'True') {
+          return 'Failed';
+        }
+        return latestCondition.type || 'Processing';
+      }
+    }
+
+    // 检查其他可能的状态字段
+    if (status.state) {
+      return status.state;
+    }
+
+    if (status.ready === true) {
+      return 'Success';
+    }
+
+    if (status.ready === false) {
+      return 'Failed';
+    }
+
+    return 'Processing';
+  }
 
   /**
    * 创建 Devbox
@@ -173,22 +221,50 @@ export class DevboxManagerService {
       return {
         success: true,
         devbox: {
+          // 基本信息
           name: devbox.metadata?.name,
+          namespace: devbox.metadata?.namespace,
+          uid: devbox.metadata?.uid,
+          resourceVersion: devbox.metadata?.resourceVersion,
+          generation: devbox.metadata?.generation,
+          createdAt: devbox.metadata?.creationTimestamp,
+          
+          // 状态信息
           state: parseDevboxStatus(devbox.status),
           phase: devbox.status?.phase || 'Unknown',
+          
+          // 网络信息
           networkType: devbox.status?.network?.type || 'Unknown',
           nodePort: devbox.status?.network?.nodePort || 'Unknown',
-          url: await buildDevboxUrl(devbox),
-          // 提供所有端口的详细信息
-          ports: buildPortsInfo(devbox),
+          url: await buildDevboxUrl(devbox, this.k8sService),
+          ports: await buildPortsInfo(devbox, this.k8sService),
+          
+          // 资源配置
           cpu: devbox.spec?.resource?.cpu,
           memory: devbox.spec?.resource?.memory,
           image: devbox.spec?.image,
           templateID: devbox.spec?.templateID,
-          createdAt: devbox.metadata?.creationTimestamp,
-          namespace: devbox.metadata?.namespace,
-          labels: devbox.metadata?.labels,
-          annotations: devbox.metadata?.annotations,
+          
+          // 配置详情
+          user: devbox.spec?.config?.user,
+          workingDir: devbox.spec?.config?.workingDir,
+          releaseCommand: devbox.spec?.config?.releaseCommand,
+          releaseArgs: devbox.spec?.config?.releaseArgs,
+          
+          // 运行时信息
+          runtime: {
+            lastRunningNode: devbox.status?.commitHistory?.[0]?.node,
+            lastRunningPod: devbox.status?.commitHistory?.[0]?.pod,
+            lastStartTime: devbox.status?.lastState?.running?.startedAt,
+            commitHistory: devbox.status?.commitHistory || []
+          },
+          
+          // 元数据
+          labels: devbox.metadata?.labels || {},
+          annotations: devbox.metadata?.annotations || {},
+          finalizers: devbox.metadata?.finalizers || [],
+          
+          // 完整的原始数据
           spec: devbox.spec,
           status: devbox.status
         }
@@ -198,6 +274,365 @@ export class DevboxManagerService {
       console.error('获取 Devbox 详情失败:', error);
       return {
         success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * 获取 DevBoxRelease 列表
+   */
+  async getDevboxReleaseList(): Promise<{
+    success: boolean;
+    total: number;
+    items: any[];
+    error?: string;
+  }> {
+    try {
+      const response = await this.k8sService.getDevboxReleases();
+      
+      const releases = response.items.map((release: any) => ({
+        name: release.metadata?.name,
+        namespace: release.metadata?.namespace,
+        devboxName: release.spec?.devboxName,
+        newTag: release.spec?.newTag,
+        notes: release.spec?.notes,
+        createdAt: release.metadata?.creationTimestamp,
+        ownerReferences: release.metadata?.ownerReferences,
+        uid: release.metadata?.uid,
+        // 状态信息 - 用于跟踪发布进度
+        status: this.parseReleaseStatus(release.status),
+        phase: release.status?.phase || 'Unknown',
+        // 完整的状态对象，供调试使用
+        rawStatus: release.status
+      }));
+
+      return {
+        success: true,
+        total: releases.length,
+        items: releases
+      };
+
+    } catch (error: any) {
+      console.error('获取 DevBoxRelease 列表失败:', error);
+      return {
+        success: false,
+        total: 0,
+        items: [],
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * 获取特定 Devbox 的版本列表
+   */
+  async getDevboxVersions(devboxName: string): Promise<{
+    success: boolean;
+    total: number;
+    items: any[];
+    error?: string;
+  }> {
+    try {
+      const allReleases = await this.getDevboxReleaseList();
+      
+      if (!allReleases.success) {
+        return allReleases;
+      }
+
+      // 过滤出特定 Devbox 的版本
+      const devboxReleases = allReleases.items.filter(
+        release => release.devboxName === devboxName
+      );
+
+      return {
+        success: true,
+        total: devboxReleases.length,
+        items: devboxReleases
+      };
+
+    } catch (error: any) {
+      console.error('获取 Devbox 版本列表失败:', error);
+      return {
+        success: false,
+        total: 0,
+        items: [],
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * 发布新版本（异步处理）
+   */
+  async createDevboxRelease(params: {
+    devboxName: string;
+    newTag: string;
+    notes: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    release?: any;
+    error?: string;
+    needsWaiting?: boolean;
+  }> {
+    try {
+      const { devboxName, newTag, notes } = params;
+
+      // 1. 检查 Devbox 是否存在
+      const devbox = await this.k8sService.getDevbox(devboxName);
+      if (!devbox) {
+        return {
+          success: false,
+          message: 'Devbox 不存在',
+          error: `Devbox ${devboxName} 不存在`
+        };
+      }
+
+      // 2. 检查版本是否已存在
+      const versionExists = await this.k8sService.checkDevboxReleaseExists(devboxName, newTag);
+      if (versionExists) {
+        return {
+          success: false,
+          message: '版本已存在',
+          error: `版本 ${newTag} 已经存在`
+        };
+      }
+
+      // 3. 检查 Devbox 状态
+      const currentState = parseDevboxStatus(devbox.status);
+      let needsWaiting = false;
+
+      if (currentState !== 'Stopped') {
+        needsWaiting = true;
+        
+        // 立即返回成功响应，告知用户任务已提交
+        const releaseName = `${devboxName}-${newTag}`;
+        
+        // 在后台异步处理停止和发布
+        this.processDevboxReleaseAsync(devboxName, newTag, notes, devbox.metadata?.uid)
+          .catch(error => {
+            console.error(`后台处理发布任务失败 [${devboxName}-${newTag}]:`, error);
+          });
+
+        return {
+          success: true,
+          message: `发布任务已提交。Devbox 当前状态为 ${currentState}，系统将自动停止后发布版本 ${newTag}，预计需要 1-2 分钟。`,
+          release: {
+            name: releaseName,
+            devboxName: devboxName,
+            newTag: newTag,
+            notes: notes,
+            status: 'Processing',
+            createdAt: new Date().toISOString()
+          },
+          needsWaiting: true
+        };
+      }
+
+      // 如果已经是 Stopped 状态，直接发布
+      try {
+        const release = await this.createDevboxReleaseNow(devboxName, newTag, notes, devbox.metadata?.uid);
+
+        return {
+          success: true,
+          message: `版本 ${newTag} 发布任务已提交`,
+          release: {
+            name: release.metadata?.name,
+            devboxName: release.spec?.devboxName,
+            newTag: release.spec?.newTag,
+            notes: release.spec?.notes,
+            createdAt: release.metadata?.creationTimestamp,
+            status: release.status || 'Processing'
+          },
+          needsWaiting: false
+        };
+      } catch (error: any) {
+        // 如果是 409 错误（资源已存在），返回友好提示
+        if (error.code === 409 || error.message?.includes('already exists')) {
+          return {
+            success: false,
+            message: '版本已存在',
+            error: `版本 ${newTag} 已经存在，可能正在处理中或已完成`
+          };
+        }
+        // 其他错误继续抛出
+        throw error;
+      }
+
+    } catch (error: any) {
+      console.error('发布版本失败:', error);
+      return {
+        success: false,
+        message: '发布版本失败',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * 后台异步处理发布任务
+   */
+  private async processDevboxReleaseAsync(
+    devboxName: string, 
+    newTag: string, 
+    notes: string, 
+    devboxUid: string
+  ): Promise<void> {
+    try {
+      console.log(`开始后台处理发布任务: ${devboxName}-${newTag}`);
+      
+      // 1. 获取当前状态
+      let devbox = await this.k8sService.getDevbox(devboxName);
+      let currentState = parseDevboxStatus(devbox.status);
+      
+      // 2. 如果不是 Stopping 状态，则主动停止
+      if (currentState !== 'Stopped' && currentState !== 'Stopping') {
+        console.log(`后台任务: 停止 Devbox ${devboxName}，当前状态: ${currentState}`);
+        await this.k8sService.stopDevbox(devboxName);
+      }
+      
+      // 3. 等待停止完成（最多 2 分钟）
+      const maxWait = 120; // 2 分钟
+      let waitCount = 0;
+      
+      while (waitCount < maxWait) {
+        await sleep(1000);
+        
+        devbox = await this.k8sService.getDevbox(devboxName);
+        currentState = parseDevboxStatus(devbox.status);
+        
+        if (currentState === 'Stopped') {
+          console.log(`后台任务: Devbox ${devboxName} 已停止，开始发布版本`);
+          break;
+        }
+        
+        waitCount++;
+        
+        // 每 10 秒输出一次状态
+        if (waitCount % 10 === 0) {
+          console.log(`后台任务: 等待 Devbox ${devboxName} 停止... (${waitCount}/${maxWait}s) 状态: ${currentState}`);
+        }
+      }
+      
+      if (currentState !== 'Stopped') {
+        console.error(`后台任务: Devbox ${devboxName} 在 ${maxWait} 秒内未能停止，当前状态: ${currentState}`);
+        return;
+      }
+      
+      // 4. 创建 DevBoxRelease
+      try {
+        await this.createDevboxReleaseNow(devboxName, newTag, notes, devboxUid);
+        console.log(`后台任务完成: 版本 ${devboxName}-${newTag} 已提交发布`);
+      } catch (error: any) {
+        // 如果是 409 错误（资源已存在），说明已经有其他任务创建了，这是正常的
+        if (error.code === 409 || error.message?.includes('already exists')) {
+          console.log(`后台任务: 版本 ${devboxName}-${newTag} 已存在，可能被其他任务创建`);
+        } else {
+          throw error; // 其他错误继续抛出
+        }
+      }
+      
+    } catch (error: any) {
+      console.error(`后台发布任务失败 [${devboxName}-${newTag}]:`, error);
+    }
+  }
+
+  /**
+   * 立即创建 DevBoxRelease
+   */
+  private async createDevboxReleaseNow(
+    devboxName: string,
+    newTag: string,
+    notes: string,
+    devboxUid: string
+  ): Promise<any> {
+    const releaseName = `${devboxName}-${newTag}`;
+    const releaseSpec = {
+      apiVersion: 'devbox.sealos.io/v1alpha1',
+      kind: 'DevBoxRelease',
+      metadata: {
+        name: releaseName,
+        ownerReferences: [
+          {
+            apiVersion: 'devbox.sealos.io/v1alpha1',
+            kind: 'Devbox',
+            name: devboxName,
+            blockOwnerDeletion: false,
+            controller: false,
+            uid: devboxUid
+          }
+        ]
+      },
+      spec: {
+        devboxName: devboxName,
+        newTag: newTag,
+        notes: notes
+      }
+    };
+
+    return await this.k8sService.createDevboxRelease(releaseSpec);
+  }
+
+  /**
+   * 获取单个 DevBoxRelease
+   */
+  async getDevboxRelease(releaseName: string): Promise<any> {
+    try {
+      return await this.k8sService.getDevboxRelease(releaseName);
+    } catch (error: any) {
+      console.error('获取 DevBoxRelease 失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 删除版本
+   */
+  async deleteDevboxRelease(params: {
+    devboxName: string;
+    newTag: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    error?: string;
+  }> {
+    try {
+      const { devboxName, newTag } = params;
+      const releaseName = `${devboxName}-${newTag}`;
+
+      // 1. 检查版本是否存在
+      const release = await this.k8sService.getDevboxRelease(releaseName);
+      if (!release) {
+        return {
+          success: false,
+          message: '版本不存在',
+          error: `版本 ${newTag} 不存在`
+        };
+      }
+
+      // 2. 验证这个版本确实属于指定的 Devbox
+      if (release.spec?.devboxName !== devboxName) {
+        return {
+          success: false,
+          message: '版本不属于指定的 Devbox',
+          error: `版本 ${newTag} 不属于 Devbox ${devboxName}`
+        };
+      }
+
+      // 3. 删除 DevBoxRelease
+      await this.k8sService.deleteDevboxRelease(releaseName);
+
+      return {
+        success: true,
+        message: `版本 ${newTag} 删除成功`
+      };
+
+    } catch (error: any) {
+      console.error('删除版本失败:', error);
+      return {
+        success: false,
+        message: '删除版本失败',
         error: error.message
       };
     }
@@ -425,7 +860,7 @@ export class DevboxManagerService {
           return {
             name: devbox.metadata?.name || devboxName,
             status: status,
-            url: await buildDevboxUrl(devbox),
+            url: await buildDevboxUrl(devbox, this.k8sService),
             cpu: devbox.spec?.resource?.cpu || 'Unknown',
             memory: devbox.spec?.resource?.memory || 'Unknown',
             createdAt: devbox.metadata?.creationTimestamp || new Date().toISOString(),

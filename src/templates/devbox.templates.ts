@@ -100,6 +100,22 @@ spec:
         - {{FULL_DOMAIN}}
       secretName: wildcard-cert`;
 
+export const DEVBOX_RELEASE_TEMPLATE = `apiVersion: devbox.sealos.io/v1alpha1
+kind: DevBoxRelease
+metadata:
+  name: {{RELEASE_NAME}}-{{NEW_TAG}}
+  ownerReferences:
+    - apiVersion: devbox.sealos.io/v1alpha1
+      kind: Devbox
+      name: {{DEVBOX_NAME}}
+      blockOwnerDeletion: false
+      controller: false
+      uid: {{DEVBOX_UID}}
+spec:
+  devboxName: {{DEVBOX_NAME}}
+  newTag: {{NEW_TAG}}
+  notes: "{{NOTES}}"`;
+
 /**
  * 模板变量替换函数
  */
@@ -142,4 +158,26 @@ export function generateDevboxYamls(params: {
     service: replaceTemplateVariables(SERVICE_TEMPLATE, variables),
     ingress: replaceTemplateVariables(INGRESS_TEMPLATE, variables)
   };
+}
+
+/**
+ * 生成 DevBoxRelease YAML 配置
+ */
+export function generateDevboxReleaseYaml(params: {
+  devboxName: string;
+  devboxUid: string;
+  newTag: string;
+  notes: string;
+}): string {
+  const releaseName = `${params.devboxName}-${params.newTag}`;
+  
+  const variables = {
+    '{{RELEASE_NAME}}': releaseName,
+    '{{DEVBOX_NAME}}': params.devboxName,
+    '{{DEVBOX_UID}}': params.devboxUid,
+    '{{NEW_TAG}}': params.newTag,
+    '{{NOTES}}': params.notes
+  };
+
+  return replaceTemplateVariables(DEVBOX_RELEASE_TEMPLATE, variables);
 }

@@ -126,6 +126,114 @@ export class DevboxK8sService extends K8sBaseService {
   }
 
   /**
+   * 获取 DevBoxRelease 列表
+   */
+  async getDevboxReleases(namespace?: string): Promise<any> {
+    try {
+      const targetNamespace = namespace || process.env.NAMESPACE || 'default';
+      
+      const response = await this.k8sApi.customObjectsApi.listNamespacedCustomObject({
+        group: 'devbox.sealos.io',
+        version: 'v1alpha1',
+        namespace: targetNamespace,
+        plural: 'devboxreleases'
+      });
+      
+      return response.body || response;
+    } catch (error: any) {
+      console.error('获取 DevBoxRelease 列表失败:', error);
+      throw new Error(`获取 DevBoxRelease 列表失败: ${error.message || error}`);
+    }
+  }
+
+  /**
+   * 获取单个 DevBoxRelease 详情
+   */
+  async getDevboxRelease(name: string, namespace?: string): Promise<any> {
+    try {
+      const targetNamespace = namespace || process.env.NAMESPACE || 'default';
+      
+      const response = await this.k8sApi.customObjectsApi.getNamespacedCustomObject({
+        group: 'devbox.sealos.io',
+        version: 'v1alpha1',
+        namespace: targetNamespace,
+        plural: 'devboxreleases',
+        name: name
+      });
+      
+      return response.body || response;
+    } catch (error: any) {
+      if (error.code === 404) {
+        return null; // 不存在时返回 null
+      }
+      console.error('获取 DevBoxRelease 详情失败:', error);
+      throw new Error(`获取 DevBoxRelease 详情失败: ${error.message || error}`);
+    }
+  }
+
+  /**
+   * 创建 DevBoxRelease
+   */
+  async createDevboxRelease(releaseSpec: any, namespace?: string): Promise<any> {
+    try {
+      const targetNamespace = namespace || process.env.NAMESPACE || 'default';
+      
+      const response = await this.k8sApi.customObjectsApi.createNamespacedCustomObject({
+        group: 'devbox.sealos.io',
+        version: 'v1alpha1',
+        namespace: targetNamespace,
+        plural: 'devboxreleases',
+        body: releaseSpec
+      });
+      
+      return response.body || response;
+    } catch (error: any) {
+      console.error('创建 DevBoxRelease 失败:', error);
+      // 保留原始错误信息，包括错误码
+      const newError = new Error(`创建 DevBoxRelease 失败: ${error.message || error}`);
+      (newError as any).code = error.code;
+      (newError as any).originalError = error;
+      throw newError;
+    }
+  }
+
+  /**
+   * 检查特定 Devbox 的版本是否已存在
+   */
+  async checkDevboxReleaseExists(devboxName: string, newTag: string, namespace?: string): Promise<boolean> {
+    try {
+      const releaseName = `${devboxName}-${newTag}`;
+      const release = await this.getDevboxRelease(releaseName, namespace);
+      return release !== null;
+    } catch (error: any) {
+      // 出错时认为不存在
+      return false;
+    }
+  }
+
+  /**
+   * 删除 DevBoxRelease
+   */
+  async deleteDevboxRelease(releaseName: string, namespace?: string): Promise<any> {
+    try {
+      const targetNamespace = namespace || process.env.NAMESPACE || 'default';
+      
+      const response = await this.k8sApi.customObjectsApi.deleteNamespacedCustomObject({
+        group: 'devbox.sealos.io',
+        version: 'v1alpha1',
+        namespace: targetNamespace,
+        plural: 'devboxreleases',
+        name: releaseName
+      });
+      
+      return response.body || response;
+    } catch (error: any) {
+      console.error('删除 DevBoxRelease 失败:', error);
+      throw new Error(`删除 DevBoxRelease 失败: ${error.message || error}`);
+    }
+  }
+
+  /**
    * 修改 Devbox 状态
    */
   async patchDevbox(name: string, patchData: any, namespace?: string): Promise<any> {
